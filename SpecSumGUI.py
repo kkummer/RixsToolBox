@@ -57,6 +57,8 @@ from PyMca5.PyMcaMath import SimpleMath
 from SpecGenGUI import ExportWidget
 from RTB_Icons import RtbIcons
 
+from scipy import interpolate, ndimage, signal
+
 class MainWindow(qt.QWidget):
     def __init__(self, parent=None):
         DEBUG = 1
@@ -221,9 +223,16 @@ class MainWindow(qt.QWidget):
         self.groupSpinBox.setMinimumWidth(100)
         self.groupSpinBox.setSuffix(' Spectra')
         
+        self.trendCheckBox = qt.QCheckBox(self, text='Align to trend')
+        self.sumrefCheckBox = qt.QCheckBox(self, text='Use sum as reference for alignment')
+        
         groupLayout = qt.QHBoxLayout()
         groupLayout.addWidget(self.groupCheckBox)
         groupLayout.addWidget(self.groupSpinBox)
+        groupLayout.addWidget(qt.HorizontalSpacer())
+        groupLayout.addWidget(self.trendCheckBox)
+        groupLayout.addWidget(qt.HorizontalSpacer())
+        groupLayout.addWidget(self.sumrefCheckBox)
         groupLayout.addWidget(qt.HorizontalSpacer())
         self.groupWidget = qt.QWidget()
         self.groupWidget.setLayout(groupLayout)
@@ -349,28 +358,9 @@ class MainWindow(qt.QWidget):
     
     
     
-    
-    def alignButtonClicked(self):
-        curves = self._plotSpectraWindow.getAllCurves()
-        legends = self._plotSpectraWindow.getAllCurves(just_legend=True)
+    def findShifts(self, curves, legends, label=''):
         
-        # Check if there are at least two scans
-        if len(legends) < 2:
-            return
-        # Set zoom to alignment window
-        xlimits = self._plotSpectraWindow.getGraphXLimits()
-        self._plotSpectraWindow.setGraphXLimits(
-            self._minSpinBox.value(), self._maxSpinBox.value())
-        self._plotSpectraWindow.replot()
-        # Calculate shifts using Advanced Alignment Plugin
-        self.aasp = AdvancedAlignmentScanPlugin.AdvancedAlignmentScanPlugin(
-            self._plotSpectraWindow)
-        self.aasp.setShiftMethod('Shift x-range')
-        self.aasp.setAlignmentMethod(self.methodComboBox.currentText())
-        
-        groupspectra = self.groupCheckBox.isChecked()
-        
-        if groupspectra:
+        if self.groupCheckBox.isChecked():
             groupsize = self.groupSpinBox.value()
             groups = []
             
@@ -380,7 +370,6 @@ class MainWindow(qt.QWidget):
             if len(legends)%groupsize != 0:
                 groups.append(legends[(iii+1)*groupsize:])
             self._plotSpectraWindow.removeCurves(legends)
-            
             
             
             groupshifts = []
@@ -411,7 +400,7 @@ class MainWindow(qt.QWidget):
             y = np.zeros(len(legends))
             for i, shift in enumerate(groupshifts):
                 y[i*groupsize:i*groupsize+len(groups[i])] = shift
-            self._plotShiftsWindow.addCurve(x, y, 'Group shifts')
+            #~ self._plotShiftsWindow.addCurve(x, y, 'Group shifts'+label)
             
             # Prepare shift dictionary
             llist = legends
@@ -422,6 +411,73 @@ class MainWindow(qt.QWidget):
                     ldict[legend] = shift
         else:
             llist, ldict = self.aasp.calculateShifts()
+        
+        if llist[0] == 'Average Y':
+            ldict.pop(llist[0])
+            llist = llist[1:]
+        
+        spec_num = np.arange(len(llist))
+        spec_shift = np.array([ldict[s] for s in llist])
+        self._plotShiftsWindow.addCurve(
+            spec_num+1, spec_shift, 'Shifts'+label, ylabel='Shift', symbol='o')
+        
+        if self.trendCheckBox.isChecked():
+            trend = interpolate.UnivariateSpline(spec_num, spec_shift)(spec_num)
+            self._plotShiftsWindow.addCurve(spec_num+1, trend, 'Trend'+label)
+            for i, s in enumerate(llist):
+                ldict[s] = trend[i]
+        
+        return llist, ldict
+    
+    
+    def alignButtonClicked(self):
+        curves = copy.deepcopy(self._plotSpectraWindow.getAllCurves())
+        legends = copy.deepcopy(self._plotSpectraWindow.getAllCurves(just_legend=True))
+        
+        # Check if there are at least two scans
+        if len(legends) < 2:
+            return
+        # Set zoom to alignment window
+        xlimits = self._plotSpectraWindow.getGraphXLimits()
+        self._plotSpectraWindow.setGraphXLimits(
+            self._minSpinBox.value(), self._maxSpinBox.value())
+        self._plotSpectraWindow.replot()
+        # Calculate shifts using Advanced Alignment Plugin
+        self.aasp = AdvancedAlignmentScanPlugin.AdvancedAlignmentScanPlugin(
+            self._plotSpectraWindow)
+        self.aasp.setShiftMethod('Shift x-range')
+        self.aasp.setAlignmentMethod(self.methodComboBox.currentText())
+        
+        
+        self._plotShiftsWindow.clearCurves()
+        
+        if self.sumrefCheckBox.isChecked():
+            llist, ldict = self.findShifts(curves, legends, label=' run 1')
+            
+            
+            xvals = [c[0]+ldict[llist[i]] for i, c in enumerate(curves)]
+            yvals = [c[1]+ldict[llist[i]] for i, c in enumerate(curves)]
+            avgx, avgy = self.simpleMath.average(xvals, yvals)
+            
+            self._plotSpectraWindow.clearCurves()
+            self._plotSpectraWindow.addCurve(avgx, avgy, 'Average')
+            for i, curve in enumerate(curves):
+                x, y, legend, info = curve
+                self._plotSpectraWindow.addCurve(x, y, legend, info)
+            
+            newcurves = self._plotSpectraWindow.getAllCurves()
+            newlegends = self._plotSpectraWindow.getAllCurves(just_legend=True)
+            
+            newllist, newldict = self.findShifts(newcurves, newlegends, 
+                label=' run2')
+            
+            for i, s in enumerate(llist):
+                ldict[s] = newldict[newllist[i]]
+        
+        else:
+            llist, ldict = self.findShifts(curves, legends)
+        
+        
         
         
         
@@ -460,8 +516,6 @@ class MainWindow(qt.QWidget):
             
             self.shifts.append(ldict[legend])
             self.shiftedScans.append(legend)
-            self._plotShiftsWindow.addCurve(
-                np.arange(i+1)+1, self.shifts, 'Shifts', ylabel='Shift', symbol='o')
             
             if i == 0:
                 newlegend = legend
