@@ -234,7 +234,7 @@ class MainWindow(qt.QWidget):
       
         
     def expertsettings(self):
-        print "expert_settings"
+        print("expert_settings")
         self._expertDialog = ExpertSettingsDialog(self, lower_threshold= self.lower_threshold, upper_threshold= self.upper_threshold, masksize=self.masksize,
                                                SPC_gridsize= self.SPC_gridsize,SPC_low_threshold=self.SPC_low_threshold, SPC_high_threshold=self.SPC_high_threshold,
                                                SPC_single_threshold=self.SPC_single_threshold, SPC_double_threshold=self.SPC_double_threshold )
@@ -745,7 +745,7 @@ class ExpertSettingsDialog(qt.QDialog):
     
     
     def ApplyButtonclicked(self):
-        print "Apply button clicked"
+        print("Apply button clicked")
         qt.QObject.emit(self, qt.SIGNAL('ApplyButtonClicked'), 
             'APPLY_BUTTON')
         self.parent.lower_threshold = self._lowerthresholdDoubleSpinBox.value()

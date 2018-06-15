@@ -566,7 +566,7 @@ class MainWindow(qt.QWidget):
         sourcenames = [s.sourceName[0] for s in self._sourceWidget.sourceList]
         curves = self._plotSpectraWindow.getAllCurves()
         if len(curves) < 2:
-            print 'No curves'
+            print('No curves')
             return
         
         xlimits = self._plotSpectraWindow.getGraphXLimits()
@@ -801,7 +801,7 @@ class MainWindow(qt.QWidget):
             
             with open('%s' % (specfilename), 'ab+') as f:
                 f.write(''.join(output).encode('ascii'))
-            print 'Spectrum saved to \"%s\"' % (specfilename)
+            print('Spectrum saved to \"%s\"' % (specfilename))
             
             key = SpecFileDataSource(specfilename).getSourceInfo()['KeyList'][-1]
             
@@ -820,7 +820,7 @@ class MainWindow(qt.QWidget):
                 datfilename = '%s/S%04d_%s_%s.dat' % (specfilename.rstrip('.spec'),
                     scannumber, key.split('.')[-1], command)
                 np.savetxt('%s' % (datfilename), dataObject.data)
-                print 'Spectrum saved to \"%s\"\n' % (datfilename)
+                print('Spectrum saved to \"%s\"\n' % (datfilename))
             
             #~ scannumber +=1
         

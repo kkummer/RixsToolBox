@@ -49,7 +49,7 @@ class RixsSpectrum():
     
     
     def get_image(self):
-        print self.edffile
+        print(self.edffile)
         self.image = EdfFile.EdfFile(self.edffile)
         self.imagedate = time.strftime('%Y-%m-%d %H:%M:%S', 
             time.localtime(os.stat(self.edffile).st_mtime))
@@ -178,7 +178,7 @@ class RixsSpectrum():
             yc = np.dot(spots.sum(axis=1).T, index_rel) / intensities
             cp += np.vstack([yc, xc]).T
         else:
-            print "No spots!!!"
+            print("No spots!!!")
             cp = np.array([[0, 0]])
             intensities = np.array([0])
 
@@ -296,7 +296,7 @@ class RixsSpectrum():
                 f.write(fileheader.encode('ascii'))
         with open('%s' % (specfilename), 'ab+') as f:
             f.write(''.join(output).encode('ascii'))
-        print 'Spectrum saved to \"%s\"' % (specfilename)
+        print('Spectrum saved to \"%s\"' % (specfilename))
         
         if savedatfile:
             if not os.path.isdir(specfilename.rstrip('.spec')):
@@ -309,13 +309,13 @@ class RixsSpectrum():
             datfilename = '%s/S%04d.dat' % (specfilename.rstrip('.spec'),
                 scannumber)
             np.savetxt('%s' % (datfilename), dataObject.data)
-            print 'Spectrum saved to \"%s\"\n' % (datfilename)
+            print('Spectrum saved to \"%s\"\n' % (datfilename))
                 
             if not os.path.isdir(outputfile.rstrip('.spec')):
                 os.mkdir(outputfile.rstrip('.spec'))
             np.savetxt('%s' % (datfilename), np.vstack(
                 [self.spectrum[colname] for colname in self.spectrum_cols]).T)
-            print 'Spectrum saved to \"%s\"\n' % (datfilename)
+            print('Spectrum saved to \"%s\"\n' % (datfilename))
         
         return None
 
