@@ -258,7 +258,7 @@ class MainWindow(qt.QWidget):
                     x.slope = slope
                     x.make_traditional_spectrum()
                 stoptime = datetime.now()
-                print('Traditional: %.f ms' % ((stoptime-starttime).microseconds / 1000))
+                print 'Traditional: %.f ms' % ((stoptime-starttime).microseconds / 1000)
                 self.tradSpectraPlot.addCurve(x.spectrum['Pixel'],x.spectrum['Photons'], '%s-Photons-%s' % (slope,fname),color=colors[i])
                 #peak and fwhm from specarithmetic
                 peakpos, peakvalue, peakindex = self._specarithmetic.search_peak( x.spectrum['Pixel'], x.spectrum['Photons'])
