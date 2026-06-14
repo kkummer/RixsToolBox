@@ -1,0 +1,132 @@
+;--------------------------------
+;Product Info
+Name "__PROGRAM__" ;Define your own software name here
+!define PRODUCT "__PROGRAM__" ;Define your own software name here
+!define VERSION "__VERSION__" ;Define your own software version here
+
+CRCCheck On
+; Script create for version 2.0b4 1.40 (from 09.sep.03) with GUI NSIS (c) by Dirk Paehl. Thank you for use my program
+
+ !include "MUI.nsh"
+ !include "x64.nsh"
+ 
+ Function .onInit
+	${If} ${RunningX64}
+	${EnableX64FSRedirection}
+	${else}
+	MessageBox MB_OK "Sorry this version only runs on Windows 64 bit."
+	Abort
+	${EndIf}
+FunctionEnd
+
+
+; For icon association
+!define SHCNE_ASSOCCHANGED 0x08000000
+!define SHCNF_IDLIST 0
+ 
+Function RefreshShellIcons
+  ; By jerome tremblay - april 2003
+  System::Call 'shell32.dll::SHChangeNotify(i, i, i, i) v \
+  (${SHCNE_ASSOCCHANGED}, ${SHCNF_IDLIST}, 0, 0)'
+FunctionEnd
+
+ 
+;--------------------------------
+;Configuration
+ 
+   OutFile "__OUTFILE__"
+
+   ;Folder selection page
+   InstallDir "$PROGRAMFILES64\${PRODUCT}"
+
+
+;Remember install folder
+InstallDirRegKey HKCU "Software\${PRODUCT}" ""
+
+;--------------------------------
+;Pages
+!insertmacro MUI_PAGE_LICENSE "../pyinstaller/RixsToolBox.txt"
+  !insertmacro MUI_PAGE_DIRECTORY
+  !insertmacro MUI_PAGE_INSTFILES
+  !insertmacro MUI_PAGE_FINISH
+  !insertmacro MUI_UNPAGE_CONFIRM
+  !insertmacro MUI_UNPAGE_INSTFILES
+
+ !define MUI_ABORTWARNING
+;--------------------------------
+ ;Language
+ 
+  !insertmacro MUI_LANGUAGE "English"
+;--------------------------------
+;Icon "${NSISDIR}\Contrib\Graphics\Icons\win-install.ico"
+Icon "__ICON_PATH__"
+UninstallIcon "${NSISDIR}\Contrib\Graphics\Icons\win-uninstall.ico"
+
+;Installer Sections
+     
+Section "section_1" section_1
+SetOutPath "$INSTDIR"
+FILE /r "__SOURCE_DIRECTORY__\*.*"
+SectionEnd
+
+Section Shortcuts
+SetOutPath "$PROFILE"
+Call RefreshShellIcons   
+CreateDirectory "$SMPROGRAMS\${PRODUCT}"
+CreateShortCut "$SMPROGRAMS\${PRODUCT}\${PRODUCT}.lnk" "$INSTDIR\${PRODUCT}.exe" "-f" "$INSTDIR\${PRODUCT}.exe" 0
+SectionEnd
+
+Section Uninstaller
+CreateShortCut "$SMPROGRAMS\${PRODUCT}\Uninstall.lnk" "$INSTDIR\uninst.exe" "" "$INSTDIR\uninst.exe" 0
+WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT}" "DisplayName" "${PRODUCT}"
+WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT}" "DisplayVersion" "${VERSION}"
+WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT}" "Publisher" "ESRF"
+WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT}" "UninstallString" "$INSTDIR\Uninst.exe"
+WriteRegStr HKCU "Software\${PRODUCT}" "" $INSTDIR
+WriteUninstaller "$INSTDIR\Uninst.exe"
+ 
+ 
+SectionEnd
+ 
+;--------------------------------  
+;Descriptions
+;--------------------------------
+    
+;Uninstaller Section
+   
+Section "Uninstall" 
+ 
+  ;Add your stuff here  
+   
+  ;Delete Files 
+ Delete "$INSTDIR\mpl-data\*.*" 
+ Delete "$INSTDIR\.matplotlib\*.*" 
+ Delete "$INSTDIR\attdata\*.*" 
+ Delete "$INSTDIR\HTML\IMAGES\*.*" 
+ Delete "$INSTDIR\HTML\PyMCA_files\*.*" 
+ Delete "$INSTDIR\HTML\*.*" 
+ Delete "$INSTDIR\*.*"
+  
+  ;Delete Start Menu Shortcuts
+  Delete "$SMPROGRAMS\${PRODUCT}\*.*"
+  RmDir "$SMPROGRAMS\${PRODUCT}"
+  SetShellVarContext all
+  Delete "$SMPROGRAMS\${PRODUCT}\*.*"
+  RmDir "$SMPROGRAMS\${PRODUCT}"
+  ;Delete Uninstaller And Uninstall Registry Entries
+  DeleteRegKey HKEY_LOCAL_MACHINE "SOFTWARE\${PRODUCT}"
+  DeleteRegKey HKEY_LOCAL_MACHINE "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT}"
+  DeleteRegKey HKEY_CURRENT_USER "SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\MenuOrder\Start Menu\Programs\${PRODUCT}"
+  DeleteRegKey HKEY_CURRENT_USER "SOFTWARE\${PRODUCT}"
+  ;Delete Files 
+  RMDir "$INSTDIR\mpl-data"
+  RMDir "$INSTDIR\.matplotlib"
+  RMDir "$INSTDIR\attdata"
+  RMDir "$INSTDIR\HTML\IMAGES"
+  RMDir "$INSTDIR\HTML\PyMCA_files"
+  RMDir "$INSTDIR\HTML"
+  RMDir /r "$INSTDIR"
+             
+SectionEnd
+               
+;eof

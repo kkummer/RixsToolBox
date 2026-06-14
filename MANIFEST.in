@@ -1,0 +1,4 @@
+include build-cxfreeze.py
+include build-pyinstaller.py
+recursive-include icons *.icns *.ico
+recursive-include package *

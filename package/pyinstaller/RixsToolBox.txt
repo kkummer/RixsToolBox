@@ -1,0 +1,5 @@
+RixsToolBox is a data analysis software for data collected at the ESRF ID32 and Diamond I21 RIXS end stations. This software is provided "as is".
+
+Authors: Kurt Kummer, Annalisa Tamborrino
+
+Copyright (C) 2016-2019, 2024 European Synchrotron Radiation Facility
