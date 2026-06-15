@@ -9,7 +9,11 @@ from pathlib import Path
 
 import PyInstaller
 from PyInstaller.config import CONF
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import (
+    collect_data_files,
+    collect_dynamic_libs,
+    collect_submodules,
+)
 
 logger = logging.getLogger("pyinstaller")
 
@@ -22,6 +26,8 @@ logger.info("Using temporary dist dir <%s>" % DISTDIR)
 datas = []
 PROJECT_PATH = os.path.abspath(os.path.join(SPECPATH, "..", ".."))
 datas.append((os.path.join(PROJECT_PATH, "README.md"), "."))
+datas.append((os.path.join(PROJECT_PATH, "LICENSE"), "."))
+datas += collect_data_files("numpy")
 
 if sys.platform.startswith("darwin"):
     icon = os.path.join(PROJECT_PATH, "icons", "logo.icns")
@@ -34,19 +40,41 @@ hiddenimports = ["secrets"]  # needed by numpy 1.23.2
 hiddenimports += collect_submodules("encodings.ascii")
 hiddenimports += collect_submodules("encodings.utf_8")
 hiddenimports += collect_submodules("encodings.latin_1")
-# hiddenimports += collect_submodules('fabio')
-# hiddenimports += collect_submodules('PyQt5.uic')
-# hiddenimports += collect_submodules('hdf5plugin')
-# hiddenimports += collect_submodules('fisx')
+hiddenimports += collect_submodules("fabio")
+hiddenimports += collect_submodules("PyQt5.uic")
+hiddenimports += collect_submodules("hdf5plugin")
+hiddenimports += collect_submodules("fisx")
+hiddenimports += collect_submodules("PyMca5.PyMcaGui.PyMcaQt")
+hiddenimports += collect_submodules("multiprocessing")
+hiddenimports += collect_submodules("multiprocessing.spawn")
+
+my_binaries = []
+
+hiddenimports += collect_submodules("PySide6.QtTest")
+
+if sys.platform.startswith("win"):
+    hiddenimports += collect_submodules("numpy")
+    hiddenimports += ["numpy.core._multiarray_umath", "numpy.core.multiarray"]
+    my_binaries += collect_dynamic_libs("numpy")
+else:
+    hiddenimports += [
+        "ipykernel.datapub",
+        "ipykernel.pylab.config",
+        "ipykernel.pylab.backend_inline",
+        "traitlets.config",
+        "qtconsole.styles",
+    ]
+
+excludes = []
 
 # they will be added in full
-excludes = ["fabio", "hdf5plugin", "silx"]
+# excludes += ["fabio", "hdf5plugin", "silx"]
 
 # if this module is included, the interactive console does not work
 excludes.append("debugpy")
 
 # This module basically does not work with frozen versions
-excludes.append("multiprocessing")
+# excludes.append("multiprocessing")
 
 
 # get the script list
@@ -82,7 +110,7 @@ for i in range(len(script_l)):
         Analysis(
             [script_n[i]],
             pathex=[],
-            binaries=[],
+            binaries=my_binaries,
             datas=datas,
             hiddenimports=hiddenimports,
             hookspath=[],
@@ -388,8 +416,6 @@ import collections
 
 special_modules += [os.path.dirname(collections.__file__)]
 
-# no scipy (huge package not used by PyMca)
-excludes += ["scipy"]
 
 # give some time to read the output
 time.sleep(2)
@@ -541,7 +567,7 @@ for i in range(len(script_col)):
             "CFBundleVersion": "RixsToolBox " + version,
             "LSBackgroundOnly": False,
             "LSTypeIsPackage": True,
-            "LSMinimumSystemVersion": "10.9.0",
+            "LSMinimumSystemVersion": "11.0",
             "NSHumanReadableCopyright": "MIT",
             "NSHighResolutionCapable": True,
             "NSPrincipalClass": "NSApplication",
@@ -704,8 +730,8 @@ else:
     frozenDir = target
 
     #  generation of the NSIS executable
-    nsis = os.path.join(r"\Program Files (x86)", "NSIS", "makensis.exe")
-    if sys.platform.startswith("win") and os.path.exists(nsis):
+    nsis = shutil.which("makensis")
+    if sys.platform.startswith("win") and nsis:
         # check if we can perform the packaging
         outFile = os.path.join(SPECPATH, "nsisscript.nsi")
         f = open(os.path.join(SPECPATH, "nsisscript.nsi.in"), "r")

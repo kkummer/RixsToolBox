@@ -1,0 +1,424 @@
+name: Release
+
+on:
+  # Run manually from the Actions tab.
+  workflow_dispatch:
+  # Build on pushes to any branch and on version tags.
+  push:
+    branches:
+      - "**"
+    tags:
+      - "v*"
+  # Build pull requests too. Forks have no access to the signing secrets,
+  # so the codesign/notarize steps skip themselves when secrets are absent.
+  pull_request:
+
+# Cancel superseded runs for the same ref (these builds are expensive).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# RixsToolBox is pure Python, so (unlike PyMca) there is no wheel-building job:
+# the package and its dependencies are installed directly from source/PyPI.
+# On macOS the application is built for arm64 and x86_64 separately, then the
+# two bundles are merged into a single universal2 .app which is signed, packed
+# into a DMG and notarized. On Windows PyInstaller produces a one-folder
+# application and, when NSIS is available, an installer executable.
+
+env:
+  APP_NAME: RixsToolBox
+  # Pinned dependency versions known to freeze cleanly (mirrors PyMca CI).
+  MACOS_WHEELHOUSE: http://www.silx.org/pub/wheelhouse/universal2
+
+jobs:
+  macos-arm64:
+    name: macOS arm64
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Rosetta
+        run: sudo softwareupdate --install-rosetta --agree-to-license
+
+      - name: Set the environment for macOS 11 compatibility
+        run: |
+          echo "MACOSX_DEPLOYMENT_TARGET=11" >> $GITHUB_ENV
+          echo "CFLAGS=-mmacosx-version-min=11" >> $GITHUB_ENV
+          echo "LDFLAGS=-mmacosx-version-min=11" >> $GITHUB_ENV
+
+      - name: Install dependencies
+        run: |
+          pip install "setuptools<80"
+          pip install --no-cache --trusted-host www.silx.org "${MACOS_WHEELHOUSE}/psutil-5.9.6-cp312-abi3-macosx_10_9_universal2.whl"
+          pip install --no-cache --trusted-host www.silx.org "${MACOS_WHEELHOUSE}/Pillow-10.1.0-cp312-cp312-macosx_11_0_universal2.whl"
+          pip install --no-cache --trusted-host www.silx.org "${MACOS_WHEELHOUSE}/tornado-6.3.3-cp38-abi3-macosx_10_9_universal2.whl"
+          pip install --no-cache --trusted-host www.silx.org "${MACOS_WHEELHOUSE}/contourpy-1.2.0-cp312-cp312-macosx_11_0_universal2.whl"
+          pip install --no-cache --trusted-host www.silx.org "${MACOS_WHEELHOUSE}/kiwisolver-1.4.5-cp312-cp312-macosx_11_0_universal2.whl"
+          pip install numpy==2.2.6
+          pip install h5py cycler==0.12.1 fonttools==4.45.1 packaging==23.2 pyparsing==3.1.1 python_dateutil==2.8.2
+          pip install matplotlib==3.10.5 hdf5plugin
+          pip install PySide6==6.7.3 lxml==4.9.3
+          pip install fisx silx==2.2.2 fabio PyMca5 scipy
+          pip install PyOpenGL ipython qtconsole==5.6.1
+          pip install PyInstaller==6.15.0 Cython wheel
+          pip install --no-deps .
+
+      - name: Build the application for arm64
+        run: |
+          arch -arm64 python build-pyinstaller.py
+          ls dist
+
+      - name: Verify the build
+        run: |
+          set -e
+          DMG=$(ls dist/${APP_NAME}-*.dmg)
+          hdiutil attach "$DMG" -mountpoint /Volumes/check
+          file "/Volumes/check/${APP_NAME}.app/Contents/MacOS/rtb"
+          lipo -archs "/Volumes/check/${APP_NAME}.app/Contents/MacOS/rtb"
+          hdiutil detach /Volumes/check
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: macos-arm64-dmg
+          path: dist/*.dmg
+          retention-days: 1
+
+  macos-x86_64:
+    name: macOS x86_64
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Rosetta
+        run: sudo softwareupdate --install-rosetta --agree-to-license
+
+      - name: Set the environment for macOS 11 compatibility
+        run: |
+          echo "MACOSX_DEPLOYMENT_TARGET=11" >> $GITHUB_ENV
+          echo "CFLAGS=-mmacosx-version-min=11" >> $GITHUB_ENV
+          echo "LDFLAGS=-mmacosx-version-min=11" >> $GITHUB_ENV
+
+      # Strip arm64 from the interpreter to force x86_64 (Rosetta) usage.
+      - name: Setup macOS x86_64 Python
+        run: |
+          arch -x86_64 python -m venv venv-x86_64
+          lipo venv-x86_64/bin/python -remove arm64 -output venv-x86_64/bin/python_x86
+          sudo mv venv-x86_64/bin/python_x86 venv-x86_64/bin/python
+          chmod +x venv-x86_64/bin/python
+          file venv-x86_64/bin/python
+
+      - name: Install dependencies
+        run: |
+          source venv-x86_64/bin/activate
+          arch -x86_64 pip install "setuptools<81"
+          arch -x86_64 pip install --no-cache --trusted-host www.silx.org "${MACOS_WHEELHOUSE}/psutil-5.9.6-cp312-abi3-macosx_10_9_universal2.whl"
+          arch -x86_64 pip install --no-cache --trusted-host www.silx.org "${MACOS_WHEELHOUSE}/Pillow-10.1.0-cp312-cp312-macosx_11_0_universal2.whl"
+          arch -x86_64 pip install --no-cache --trusted-host www.silx.org "${MACOS_WHEELHOUSE}/tornado-6.3.3-cp38-abi3-macosx_10_9_universal2.whl"
+          arch -x86_64 pip install --no-cache --trusted-host www.silx.org "${MACOS_WHEELHOUSE}/contourpy-1.2.0-cp312-cp312-macosx_11_0_universal2.whl"
+          arch -x86_64 pip install --no-cache --trusted-host www.silx.org "${MACOS_WHEELHOUSE}/kiwisolver-1.4.5-cp312-cp312-macosx_11_0_universal2.whl"
+          arch -x86_64 pip install numpy==2.2.6
+          arch -x86_64 pip install h5py cycler==0.12.1 fonttools==4.45.1 packaging==23.2 pyparsing==3.1.1 python_dateutil==2.8.2
+          arch -x86_64 pip install matplotlib==3.10.5 hdf5plugin
+          arch -x86_64 pip install PySide6==6.7.3 lxml==4.9.3
+          arch -x86_64 pip install fisx silx==2.2.2 fabio PyMca5 scipy
+          arch -x86_64 pip install PyOpenGL ipython qtconsole==5.6.1
+          arch -x86_64 pip install PyInstaller==6.15.0 Cython wheel
+          arch -x86_64 pip install --no-deps .
+
+      - name: Build the application for x86_64
+        run: |
+          source venv-x86_64/bin/activate
+          arch -x86_64 python build-pyinstaller.py
+          ls dist
+
+      - name: Verify the build
+        run: |
+          set -e
+          DMG=$(ls dist/${APP_NAME}-*.dmg)
+          hdiutil attach "$DMG" -mountpoint /Volumes/check
+          file "/Volumes/check/${APP_NAME}.app/Contents/MacOS/rtb"
+          lipo -archs "/Volumes/check/${APP_NAME}.app/Contents/MacOS/rtb"
+          hdiutil detach /Volumes/check
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: macos-x86_64-dmg
+          path: dist/*.dmg
+          retention-days: 1
+
+  macos-universal2:
+    name: macOS universal2
+    runs-on: macos-latest
+    needs:
+      - macos-arm64
+      - macos-x86_64
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Read the package version
+        run: |
+          VERSION=$(python -c "import re,pathlib; print(re.search(r'\"([^\"]+)\"', pathlib.Path('src/RixsToolBox/__init__.py').read_text()).group(1))")
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Download the arm64 artifact
+        uses: actions/download-artifact@v6
+        with:
+          name: macos-arm64-dmg
+          path: dist/tmp/arm64
+
+      - name: Download the x86_64 artifact
+        uses: actions/download-artifact@v6
+        with:
+          name: macos-x86_64-dmg
+          path: dist/tmp/x86_64
+
+      - name: Create output directories
+        run: mkdir -p dist/arm64 dist/x86_64
+
+      - name: Attach the arm64 DMG and copy the app
+        run: |
+          ARM_DMG=$(find dist/tmp/arm64 -name "*.dmg" | head -n 1)
+          hdiutil attach "$ARM_DMG" -mountpoint /Volumes/arm64
+          cp -R /Volumes/arm64/*.app dist/arm64/
+          hdiutil detach /Volumes/arm64
+
+      - name: Attach the x86_64 DMG and copy the app
+        run: |
+          X86_DMG=$(find dist/tmp/x86_64 -name "*.dmg" | head -n 1)
+          hdiutil attach "$X86_DMG" -mountpoint /Volumes/x86_64
+          cp -R /Volumes/x86_64/*.app dist/x86_64/
+          hdiutil detach /Volumes/x86_64
+
+      - name: Set the app name variable
+        run: |
+          APP_NAME=$(find dist/arm64 -maxdepth 1 -name '*.app' | head -n 1 | xargs -n 1 basename)
+          echo "APP_NAME=$APP_NAME" >> $GITHUB_ENV
+
+      - name: Merge into universal2 app
+        run: |
+          echo "Merging universal2 .app: $APP_NAME"
+
+          ARM64_APP="dist/arm64/$APP_NAME"
+          X86_64_APP="dist/x86_64/$APP_NAME"
+          UNIVERSAL2_APP="dist/universal2/$APP_NAME"
+
+          # Copy arm64 app as base
+          mkdir -p dist/universal2
+          cp -R "$ARM64_APP" "$UNIVERSAL2_APP"
+
+          echo "Merging executables in Contents/MacOS..."
+          for exe in "$ARM64_APP/Contents/MacOS/"*; do
+            exe_name=$(basename "$exe")
+            echo "  -> $exe_name"
+            lipo -create \
+              "$ARM64_APP/Contents/MacOS/$exe_name" \
+              "$X86_64_APP/Contents/MacOS/$exe_name" \
+              -output "$UNIVERSAL2_APP/Contents/MacOS/$exe_name"
+          done
+
+          # Extract all architectures as sorted strings.
+          get_archs() {
+            echo "$1" | grep -oE 'arm64|x86_64' | sort | tr '\n' ' '
+          }
+
+          # Check if arch list1 contains all archs in list2.
+          contains_all_archs() {
+            local container=($1)
+            local contained=($2)
+
+            for arch in "${contained[@]}"; do
+              local found=0
+              for c in "${container[@]}"; do
+                if [ "$arch" = "$c" ]; then
+                  found=1
+                  break
+                fi
+              done
+              if [ $found -eq 0 ]; then
+                return 1
+              fi
+            done
+            return 0
+          }
+
+          echo "Merging Mach-O (.so, .dylib, etc.) files in Frameworks and Resources..."
+          for section in Frameworks Resources; do
+            find "$ARM64_APP/Contents/$section" -type f | while read -r arm64_file; do
+              if ! file "$arm64_file" | grep -q 'Mach-O'; then
+                continue
+              fi
+              rel_path="${arm64_file#$ARM64_APP/}"
+              x86_64_file="$X86_64_APP/$rel_path"
+              out_file="$UNIVERSAL2_APP/$rel_path"
+
+              if [ -f "$x86_64_file" ]; then
+
+                arch_arm64=$(lipo -info "$arm64_file" 2>&1)
+                arch_x86_64=$(lipo -info "$x86_64_file" 2>&1)
+
+                archs_arm64=$(get_archs "$arch_arm64")
+                archs_x86_64=$(get_archs "$arch_x86_64")
+
+                is_arm64_universal2=false
+                is_x86_64_universal2=false
+
+                if [[ "$archs_arm64" == *"arm64"* && "$archs_arm64" == *"x86_64"* ]]; then
+                  is_arm64_universal2=true
+                fi
+
+                if [[ "$archs_x86_64" == *"arm64"* && "$archs_x86_64" == *"x86_64"* ]]; then
+                  is_x86_64_universal2=true
+                fi
+
+                if [ "$is_arm64_universal2" = true ] && [ "$is_x86_64_universal2" = false ]; then
+                  echo "  -> $rel_path"
+                  echo "    arm64_file is universal2; copying arm64_file."
+                  cp "$arm64_file" "$out_file"
+                elif [ "$is_x86_64_universal2" = true ] && [ "$is_arm64_universal2" = false ]; then
+                  echo "  -> $rel_path"
+                  echo "    x86_64_file is universal2; copying x86_64_file."
+                  cp "$x86_64_file" "$out_file"
+                else
+                  # If both universal2 or both not universal2, check if arch sets match exactly
+                  if contains_all_archs "$archs_arm64" "$archs_x86_64" && contains_all_archs "$archs_x86_64" "$archs_arm64"; then
+                    if [ "$is_arm64_universal2" = false ]; then
+                      echo "  -> $rel_path"
+                      echo "    Both files have identical architectures. Copying x86_64 file."
+                      cp "$x86_64_file" "$out_file"
+                    fi
+                  else
+                    lipo -create "$arm64_file" "$x86_64_file" -output "$out_file"
+                  fi
+                fi
+              else
+                echo "    Warning: x86_64 file not found for $rel_path. Skipping."
+              fi
+            done
+          done
+
+          echo "Universal2 app built at $UNIVERSAL2_APP"
+
+      - name: Make the main binary executable
+        run: chmod +x "dist/universal2/$APP_NAME/Contents/MacOS/rtb"
+
+      - name: Verify both architectures
+        run: |
+          set -e
+          BIN="dist/universal2/$APP_NAME/Contents/MacOS/rtb"
+          lipo -archs "$BIN"
+          lipo -archs "$BIN" | grep -q arm64
+          lipo -archs "$BIN" | grep -q x86_64
+
+      - name: Sign, create, and staple the universal2 DMG
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD }}
+          CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+          APPLICATION_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APPLICATION_SPECIFIC_PASSWORD }}
+        run: |
+          # Copy the application to the location expected by the packaging scripts.
+          mkdir -p package/pyinstaller/dist
+          cp -a "dist/universal2/$APP_NAME" "package/pyinstaller/dist/RixsToolBox.app"
+          cd package/pyinstaller
+          mkdir -p artifacts
+          ./codesign.sh
+          ./create-dmg.sh
+          ./notarize.sh
+          mv artifacts/RixsToolBox.dmg "../../dist/RixsToolBox-${VERSION}.dmg"
+          cd ../..
+          rm -fr package/pyinstaller/dist package/pyinstaller/artifacts
+
+      - name: Upload the universal2 DMG artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: macos-universal2-dmg
+          path: dist/RixsToolBox-*.dmg
+          retention-days: 7
+
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install numpy==2.2.6
+          pip install matplotlib==3.10.5 hdf5plugin
+          pip install PySide6==6.8.3
+          pip install h5py fisx silx==2.2.2 fabio PyMca5 scipy
+          pip install PyOpenGL ipython qtconsole==5.6.1
+          pip install lief==0.16.6 Cython
+          pip install PyInstaller
+          pip install --no-deps .
+
+      - name: Install NSIS
+        run: choco install nsis -y
+
+      - name: Add NSIS to PATH
+        shell: pwsh
+        run: echo "C:/Program Files (x86)/NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+      - name: Check makensis availability
+        shell: pwsh
+        run: |
+          where.exe makensis
+          makensis /VERSION
+
+      - name: Build with PyInstaller
+        run: python build-pyinstaller.py
+
+      - name: Verify the build
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path "dist" -Filter "rtb.exe" -Recurse |
+                 Select-Object -First 1 -ExpandProperty FullName
+          if (-not $exe) {
+              Write-Error "Executable 'rtb.exe' not found in dist folder."
+              exit 1
+          }
+          Write-Host "Found executable at $exe"
+
+      - name: Upload application folder
+        uses: actions/upload-artifact@v5
+        with:
+          name: windows-pyinstaller
+          path: dist/RixsToolBox/**
+          retention-days: 1
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v5
+        with:
+          name: windows-installer
+          path: dist/RixsToolBox-*-win64-PyInstaller.exe
+          retention-days: 7
+          if-no-files-found: warn
