@@ -64,7 +64,7 @@ jobs:
           pip install h5py cycler==0.12.1 fonttools==4.45.1 packaging==23.2 pyparsing==3.1.1 python_dateutil==2.8.2
           pip install matplotlib==3.10.5 hdf5plugin
           pip install PySide6==6.7.3 lxml==4.9.3
-          pip install fisx silx==2.2.2 fabio PyMca5
+          pip install fisx silx==2.2.2 fabio PyMca5 scipy
           pip install PyOpenGL ipython qtconsole==5.6.1
           pip install PyInstaller==6.15.0 Cython wheel
           pip install --no-deps .
@@ -133,7 +133,7 @@ jobs:
           arch -x86_64 pip install h5py cycler==0.12.1 fonttools==4.45.1 packaging==23.2 pyparsing==3.1.1 python_dateutil==2.8.2
           arch -x86_64 pip install matplotlib==3.10.5 hdf5plugin
           arch -x86_64 pip install PySide6==6.7.3 lxml==4.9.3
-          arch -x86_64 pip install fisx silx==2.2.2 fabio PyMca5
+          arch -x86_64 pip install fisx silx==2.2.2 fabio PyMca5 scipy
           arch -x86_64 pip install PyOpenGL ipython qtconsole==5.6.1
           arch -x86_64 pip install PyInstaller==6.15.0 Cython wheel
           arch -x86_64 pip install --no-deps .
@@ -375,7 +375,7 @@ jobs:
           pip install numpy==2.2.6
           pip install matplotlib==3.10.5 hdf5plugin
           pip install PySide6==6.8.3
-          pip install h5py fisx silx==2.2.2 fabio PyMca5
+          pip install h5py fisx silx==2.2.2 fabio PyMca5 scipy
           pip install PyOpenGL ipython qtconsole==5.6.1
           pip install lief==0.16.6 Cython
           pip install PyInstaller
