@@ -1,12 +1,22 @@
 name: Release
 
 on:
-  # Run the release manually from the Actions tab.
+  # Run manually from the Actions tab.
   workflow_dispatch:
-  # ... or automatically when a version tag is pushed.
+  # Build on pushes to any branch and on version tags.
   push:
+    branches:
+      - "**"
     tags:
       - "v*"
+  # Build pull requests too. Forks have no access to the signing secrets,
+  # so the codesign/notarize steps skip themselves when secrets are absent.
+  pull_request:
+
+# Cancel superseded runs for the same ref (these builds are expensive).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 # RixsToolBox is pure Python, so (unlike PyMca) there is no wheel-building job:
 # the package and its dependencies are installed directly from source/PyPI.
