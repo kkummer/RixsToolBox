@@ -130,7 +130,7 @@ class RtbMath(object):
         nonzdelt = 0.05
         zdelt = 0.00025
 
-        x0 = np.asfarray(x0).flatten()
+        x0 = np.asarray(x0, dtype=float).flatten()
 
         N = len(x0)
 
