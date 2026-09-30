@@ -52,6 +52,10 @@ from PyMca5.PyMcaGui.plotting import ColormapDialog, PlotWindow
 from PyMca5.PyMcaGui.pymca import QDispatcher, ScanWindow
 from PyMca5.PyMcaGui.pymca.SumRulesTool import MarkerSpinBox
 
+
+from silx.gui.plot import Plot2D
+from silx.gui import colors as silx_colors
+
 from RixsToolBox.Icons import RtbIcons
 from RixsToolBox.Math import RtbMath
 from RixsToolBox.SpecGen import ExportWidget
@@ -102,39 +106,43 @@ class MainWindow(qt.QWidget):
 
         self._exportWidget = ExportWidget()
 
-        self.mapPlotWindow = PlotWindow.PlotWindow(
-            parent=self,
-            backend=None,
-            plugins=False,
-            newplot=False,
-            roi=False,
-            control=False,
-            position=True,
-            info=False,
-            fit=False,
-            logx=False,
-            logy=False,
-            save=False,
-            togglePoints=False,
+        # ~ self.mapPlotWindow = PlotWindow.PlotWindow(
+            # ~ parent=self,
+            # ~ backend=None,
+            # ~ plugins=False,
+            # ~ newplot=False,
+            # ~ roi=False,
+            # ~ control=False,
+            # ~ position=True,
+            # ~ info=False,
+            # ~ fit=False,
+            # ~ logx=False,
+            # ~ logy=False,
+            # ~ save=False,
+            # ~ togglePoints=False,
+        # ~ )
+        # ~ self.mapPlotWindow.enableActiveCurveHandling(False)
+        # ~ self.mapPlotWindow.enableOwnSave(False)
+        
+        
+        
+        
+        
+
+        requested_cmap = "RdYlBu_r"
+        cmap_name = "viridis"
+        if requested_cmap in silx_colors.Colormap.getSupportedColormaps():
+            cmap_name = requested_cmap
+        preferred_cmaps = list(silx_colors.preferredColormaps())
+        if requested_cmap not in preferred_cmaps:
+            silx_colors.setPreferredColormaps(preferred_cmaps + [requested_cmap])
+        self.mapPlotWindow = Plot2D()
+        self.mapPlotWindow.setDefaultColormap(
+            silx_colors.Colormap(name=cmap_name, normalization="linear")
         )
-        self.mapPlotWindow.enableActiveCurveHandling(False)
-        self.mapPlotWindow.enableOwnSave(False)
 
-        # ~ self.colormapDialog = ColormapDialog.ColormapDialog(self)
-        self.colormapDialog = MyColormapDialog(self)
-
-        self.colormapButton = qt.QPushButton()
-        self.colormapButton.setMinimumSize(25, 25)
-        self.colormapButton.setMaximumSize(25, 25)
-        self.colormapButton.setIcon(qt.QIcon(qt.QPixmap(IconDict["colormap"])))
-        self.colormapButton.setToolTip("Colormap dialog")
-
-        self.updateMapButton = qt.QPushButton()
-        self.updateMapButton.setMinimumSize(25, 25)
-        self.updateMapButton.setMaximumSize(25, 25)
-        self.updateMapButton.setIcon(qt.QIcon(qt.QPixmap(IconDict["reload"])))
-        self.updateMapButton.setToolTip("Update map")
-
+        
+        
         self.waterfallPlotWindow = ScanWindow.ScanWindow(
             parent=self,
             backend=None,
@@ -284,14 +292,12 @@ class MainWindow(qt.QWidget):
         self.interpolationLayout.addWidget(qt.QLabel("Interpolation"))
         self.interpolationLayout.addSpacing(10)
         self.interpolationLayout.addWidget(self.interpolationComboBox)
-        self.interpolationLayout.addSpacing(25)
-        self.interpolationLayout.addWidget(self.colormapButton)
         self.interpolationLayout.addWidget(qt.HorizontalSpacer())
-        self.interpolationLayout.addWidget(self.updateMapButton)
         self.interpolationWidget = qt.QWidget()
         self.interpolationWidget.setLayout(self.interpolationLayout)
 
         self.integralTable = IntegralTable(self)
+        self.integralTable.setMinimumWidth(170)
         self.integralTable.setMaximumWidth(170)
         self.integralTable.setMinimumHeight(325)
         self.integralTable.setMaximumHeight(325)
@@ -305,14 +311,16 @@ class MainWindow(qt.QWidget):
         self.dummyPlotWindow.hide()
 
         self.integralMethodBox = qt.QGroupBox("Plot")
-        self.integralMethodIntegral = qt.QRadioButton("Integral", checked=True)
-        self.integralMethodMean = qt.QRadioButton("Mean value", checked=False)
+        self.integralMethodIntegral = qt.QRadioButton("Sum", checked=True)
+        self.integralMethodMean = qt.QRadioButton("Mean", checked=False)
+        self.invertIntegralsCheckbox = qt.QCheckBox("Plot inverse", checked=False)
         self.integralMethodGroup = qt.QButtonGroup()
         self.integralMethodGroup.addButton(self.integralMethodIntegral)
         self.integralMethodGroup.addButton(self.integralMethodMean)
         self.integralMethodLayout = qt.QVBoxLayout()
         self.integralMethodLayout.addWidget(self.integralMethodIntegral)
         self.integralMethodLayout.addWidget(self.integralMethodMean)
+        self.integralMethodLayout.addWidget(self.invertIntegralsCheckbox)
         self.integralMethodBox.setLayout(self.integralMethodLayout)
         self.integralMethodBox.setMaximumWidth(170)
 
@@ -398,7 +406,6 @@ class MainWindow(qt.QWidget):
         self.xAxisGroup.buttonClicked.connect(self.updatePlots)
         self.offsetSpinBox.valueChanged.connect(self.updatePlots)
 
-        self.colormapButton.clicked.connect(self.selectColormap)
         self.normaliseCheckBox.stateChanged.connect(self.setNormalisation)
         self.normaliseMethodComboBox.currentIndexChanged.connect(self.updatePlots)
         self.minSpinBox.valueChanged.connect(self.updatePlots)
@@ -407,10 +414,10 @@ class MainWindow(qt.QWidget):
         self.maxSpinBox.intersectionsChangedSignal.connect(self.updatePlots)
 
         self.interpolationComboBox.currentIndexChanged.connect(self.updateMap)
-        self.colormapDialog.sigColormapChanged.connect(self.updateMap)
-        self.updateMapButton.clicked.connect(self.updateMap)
+        
+        self.invertIntegralsCheckbox.stateChanged.connect(self.integralsChanged)
 
-        self.mapPlotWindow.sigIconSignal.connect(self.saveMap)
+        # ~ self.mapPlotWindow.sigIconSignal.connect(self.saveMap)
 
         return 0
 
@@ -452,6 +459,11 @@ class MainWindow(qt.QWidget):
                     )
                 int2plot = np.vstack([xint, yint]).T
                 int2plot = int2plot[int2plot[:, 0].argsort()]
+            
+            if self.invertIntegralsCheckbox.isChecked():
+                yint = np.asarray(int2plot[:,1], dtype=float)
+                int2plot[:,1] = np.divide(1.0, yint, out=np.full_like(yint, np.nan), where=(yint != 0))
+            
             self.integralPlotWindow.addCurve(
                 int2plot[:, 0],
                 int2plot[:, 1],
@@ -592,62 +604,58 @@ class MainWindow(qt.QWidget):
         self.waterfallPlotWindow.setGraphYLabel("Q")
         self.waterfallPlotWindow.replot()
         self.waterfallPlotWindow.resetZoom()
+        self.updateMap()
         self.integralsChanged()
+        
 
     def updateMap(self):
-        # PLOT MAP
-        points = [
-            np.vstack([x, self.qvals[i] * np.ones(len(x))])
-            for i, x in enumerate(self.xvals)
-        ]
-        points = np.hstack(points).T
-        values = np.hstack(self.yvals)
-        # Interpolate data on grid
+        if len(self.xvals) == 0  or len(self.qvals) == 0:
+            return
+        
+        # Interpolate on regular grid
+        
+        dx = np.median(np.abs(np.diff(self.xvals[0])))
+        x_axis = np.arange(
+            min(np.min(x) for x in self.xvals),
+            max(np.max(x) for x in self.xvals),
+            dx,
+        )
+        
         oversamplingQ = 10
-        grid_x, grid_y = np.mgrid[
-            self.xvals[0][0] : self.xvals[0][-1] : len(self.xvals[0]) * 1j,
-            min(self.qvals) : max(self.qvals) : oversamplingQ * len(self.qvals) * 1j,
-        ]
-        self.grid_x = grid_x[:, 0]
-        self.grid_y = grid_y[0, :]
-        # ~ self.grid_z = interpolate.griddata(points, values, (grid_x, grid_y),
-        # ~ method=self.interpolationComboBox.currentText(), fill_value=0)
-
+        q_axis = np.linspace(min(self.qvals), max(self.qvals), oversamplingQ * len(self.qvals))
+        grid_x, grid_q = np.meshgrid(x_axis, q_axis, indexing="ij")
         self.grid_z = self.RTB_Math.interpolate_on_grid(
             self.qvals,
             self.xvals,
             self.yvals,
-            (grid_x, grid_y),
+            (grid_x, grid_q),
             fill_value=None,
             method=self.interpolationComboBox.currentText(),
         )
-
-        cm_name = self.colormapDialog.combo.currentText()
-        cm_autoscale = self.colormapDialog.autoscale
-        cm_min = self.colormapDialog.minValue
-        cm_max = self.colormapDialog.maxValue
-
-        colormap = {
-            "name": cm_name,
-            "normalization": "linear",
-            "colors": 256,
-            "autoscale": cm_autoscale,
-            "vmin": cm_min,
-            "vmax": cm_max,
-        }
+        
+        
+        
+        
+        origin=(x_axis.min(), q_axis.min())
+        scale=(
+                (x_axis.max()-x_axis.min())/len(x_axis),
+                (q_axis.max()-q_axis.min())/len(q_axis),
+        )
+        
+        
+        
+        # ~ dx = x_axis[1] - x_axis[0]
+        dq = q_axis[1] - q_axis[0]
 
         self.mapPlotWindow.addImage(
-            self.grid_z,
-            colormap=colormap,
-            yScale=[grid_x[0, 0], (grid_x[-1, 0] - grid_x[0, 0]) / len(grid_x[:, 0])],
-            xScale=[
-                min(self.qvals),
-                (max(self.qvals) - min(self.qvals)) / len(self.qvals) / oversamplingQ,
-            ],
+            self.grid_z.T,
+            legend="map",
+            colormap=None,
+            origin=(x_axis[0] - dx / 2, q_axis[0] - dq / 2),
+            scale=(dx, dq),
         )
-
-        hist = np.histogram(self.grid_z, 10)
-        self.colormapDialog.plotHistogram([0.5 * (hist[1][1:] + hist[1][:-1]), hist[0]])
+        
+        
 
     def saveWaterfall(self, signal):
         if not signal["key"] == "save":
@@ -749,13 +757,7 @@ class MainWindow(qt.QWidget):
 
         return
 
-    def selectColormap(self):
-        print("Colormap dialog")
-        if self.colormapDialog.isHidden():
-            self.colormapDialog.show()
-        self.colormapDialog.raise_()
-        self.colormapDialog.show()
-
+    
     def _enableSaveButton(self):
         self.saveButton.setEnabled(True)
         self.saveButton.setToolTip(None)
@@ -908,54 +910,6 @@ class IntegralTable(qt.QTableWidget):
                     self.removeRow(row)
                     self.insertRow(9)
                 self.tableChanged.emit()
-
-
-class MyColormapDialog(ColormapDialog.ColormapDialog):
-    def __init__(self, parent):
-        ColormapDialog.ColormapDialog.__init__(self, parent)
-        self.autoScale90Button.hide()
-
-        supported_colormaps = parent.mapPlotWindow.getSupportedColormaps()
-
-        desired_colormaps = [
-            "terrain",
-            "seismic",
-            "jet",
-            "hot",
-            "gray",
-            "gnuplot",
-            "coolwarm",
-            "afmhot",
-            "Spectra_r",
-            "Reds_r",
-            "RdGy_r",
-            "RdBu_r",
-            "PuBu_r",
-            "OrRd_r",
-            "CMRmap",
-            "BrBG_r",
-            "Blues_r",
-            "temperature",
-            "RdYlBu_r",
-        ]
-        self.combo.clear()
-        self.colormapList = []
-        for cm in parent.mapPlotWindow.getSupportedColormaps():
-            # ~ if cm in desired_colormaps:
-            if 1:
-                self.combo.addItem(cm)
-                self.colormapList.append(cm)
-                self.buttonGroup.button(2).hide()
-                self.colormapList.append(cm)
-        if "RdYlBu_r" in self.colormapList:
-            cmap = "RdYlBu_r"
-        else:
-            cmap = self.colormapList[0]
-        self.colormapIndex = self.colormapList.index(cmap)
-        self.colormapString = cmap
-        self.setDataMinMax(0, 1)
-        self.setAutoscale(1)
-        self.setColormap(self.colormapIndex)
 
 
 if __name__ == "__main__":

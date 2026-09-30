@@ -343,14 +343,16 @@ class RtbMath(object):
         gridx, gridy = grid
         qvals = np.array(qvals)
 
-        gridz = np.vstack(
-            [
-                np.interp(
-                    gridx[:, 0], xvals[i], yvals[i], left=fill_value, right=fill_value
-                )
-                for i in range(len(qvals))
-            ]
-        ).T
+        spectra = []
+        for i in range(len(qvals)):
+            x = np.asarray(xvals[i])
+            y = np.asarray(yvals[i])
+            order = np.argsort(x)
+            spectra.append(
+                np.interp(gridx[:, 0], x[order], y[order], left=fill_value, right=fill_value)
+            )
+        
+        gridz = np.column_stack(spectra)
         if method == "nearest":
             gridz = np.vstack(
                 [gridz[:, np.argmin(np.abs(qvals - q))] for q in gridy[0, :]]
