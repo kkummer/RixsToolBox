@@ -667,17 +667,36 @@ class MainWindow(qt.QWidget):
 
         self._plotSpectraWindow.clearCurves()
 
-        for i, scan in enumerate(self.alignedScans):
-            newdataObject = self.alignedScans[i]["dataObject"]
+        # ~ for i, scan in enumerate(self.alignedScans):
+            # ~ newdataObject = self.alignedScans[i]["dataObject"]
+            # ~ self._plotSpectraWindow.addCurve(
+                # ~ newdataObject.data[:, xindex],
+                # ~ newdataObject.data[:, yindex],
+                # ~ self.alignedScans[i]["Legend"],
+                # ~ self.alignedScans[i]["info"],
+                # ~ xlabel=self.alignedScans[i]["xLabel"],
+                # ~ ylabel="",
+                # ~ replot=False,
+            # ~ )
+        
+        for scan in self.alignedScans:
+            dataObject = scan["dataObject"]
+            labels = dataObject.info["LabelNames"]
+        
+            # Resolve column positions separately for each scan.
+            xindex = labels.index(scan["xLabel"])
+            yindex = labels.index(scan["yLabel"])
+        
             self._plotSpectraWindow.addCurve(
-                newdataObject.data[:, xindex],
-                newdataObject.data[:, yindex],
-                self.alignedScans[i]["Legend"],
-                self.alignedScans[i]["info"],
-                xlabel=self.alignedScans[i]["xLabel"],
+                dataObject.data[:, xindex],
+                dataObject.data[:, yindex],
+                scan["Legend"],
+                scan["info"],
+                xlabel=scan["xLabel"],
                 ylabel="",
                 replot=False,
             )
+        
 
         # Reset zoom
         if self._plotSpectraWindow.isXAxisAutoScale():
@@ -754,21 +773,50 @@ class MainWindow(qt.QWidget):
             )
 
             # Transfer motor names and positions
-            if info["MotorValues"]:
-                if i == 0:
-                    mnames = info["MotorNames"]
-                    mvalues = [str(mv) for mv in info["MotorValues"]]
+            if 0:
+                if info["MotorValues"]:
+                    if i == 0:
+                        mnames = info["MotorNames"]
+                        mvalues = [str(mv) for mv in info["MotorValues"]]
+                        
+                    else:
+                        for j, m in enumerate(info["MotorNames"]):
+                            if m in mnames:
+                                if str(info["MotorValues"][j]) != mvalues[mnames.index(m)]:
+                                    mvalues[mnames.index(m)] = "-999999999"
+                                    # ~ mvalues.pop(mnames.index(m))
+                                    # ~ mnames.remove(m)
                 else:
-                    for j, m in enumerate(info["MotorNames"]):
-                        if m in mnames:
-                            if str(info["MotorValues"][j]) != mvalues[mnames.index(m)]:
-                                mvalues[mnames.index(m)] = "-999999999"
-                                # ~ mvalues.pop(mnames.index(m))
-                                # ~ mnames.remove(m)
+                    mnames = []
+                    mvalues = []
+            
+            # Transfer motor names and positions
+            current_motors = {}
+            for name, value in zip(info["MotorNames"], info["MotorValues"]):
+                value = float(value)
+                if name in ["H", "K", "L"]:
+                    value = round(value, 3)
+                current_motors[name] = value
+            
+            if i == 0:
+                common_motors = current_motors
             else:
-                mnames = []
-                mvalues = []
-
+                common_motors = {
+                    name: value
+                    for name, value in common_motors.items()
+                    if name in current_motors and current_motors[name] == value
+                }
+            
+            mnames = list(common_motors.keys())
+            mvalues = [
+                f"{common_motors[name]:.3f}"
+                if name in ["H", "K", "L"]
+                else str(common_motors[name])
+                for name in mnames
+            ]
+            
+            
+            
         newcolsnames = []
         newcols = []
         scale = len(curves2sum)

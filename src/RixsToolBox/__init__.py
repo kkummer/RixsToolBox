@@ -1,4 +1,4 @@
-__version__ = "2026.9"
+__version__ = "2026.10"
 
 
 def version():
