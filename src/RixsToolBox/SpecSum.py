@@ -772,23 +772,6 @@ class MainWindow(qt.QWidget):
                 }
             )
 
-            # Transfer motor names and positions
-            if 0:
-                if info["MotorValues"]:
-                    if i == 0:
-                        mnames = info["MotorNames"]
-                        mvalues = [str(mv) for mv in info["MotorValues"]]
-                        
-                    else:
-                        for j, m in enumerate(info["MotorNames"]):
-                            if m in mnames:
-                                if str(info["MotorValues"][j]) != mvalues[mnames.index(m)]:
-                                    mvalues[mnames.index(m)] = "-999999999"
-                                    # ~ mvalues.pop(mnames.index(m))
-                                    # ~ mnames.remove(m)
-                else:
-                    mnames = []
-                    mvalues = []
             
             # Transfer motor names and positions
             current_motors = {}
